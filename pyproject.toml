@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "profiling-framework-mvp"
+version = "0.1.0"
+description = "A reproducible LLM inference profiling MVP for Apple Silicon"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "torch>=2.3",
+  "transformers>=4.45",
+  "accelerate>=0.34",
+  "psutil>=5.9",
+  "pandas>=2.0",
+  "matplotlib>=3.8",
+  "jupyter>=1.0",
+  "ipykernel>=6.29"
+]
+
+[project.scripts]
+profile-llm = "profiling_mvp.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["profiling_mvp*"]

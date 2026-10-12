@@ -1,0 +1,71 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+
+# Build and package output
+build/
+dist/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+
+# Jupyter and interactive Python
+.ipynb_checkpoints/
+.jupyter/
+.ipython/
+profile_default/
+
+# Generated benchmark and profiler output
+/results/
+/notebooks/results/
+*.log
+logs/
+tensorboard/
+runs/
+wandb/
+mlruns/
+lightning_logs/
+profiler_traces/
+*.pt.trace.json
+*.pt.trace.json.gz
+
+# Downloaded model weights and checkpoints
+checkpoints/
+*.ckpt
+*.safetensors
+*.pth
+*.pt
+*.onnx
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
