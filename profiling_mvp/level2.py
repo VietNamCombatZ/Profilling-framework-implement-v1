@@ -123,10 +123,13 @@ def memory_snapshot(device: str) -> dict:
 
 
 @torch.inference_mode()
-def run_once(model, ids, mask, max_new_tokens: int, device: str) -> dict:
+def run_once(model, ids, mask, max_new_tokens: int, device: str,
+             phase_observer=None) -> dict:
     """Same phase boundary as Level 1; one batch forward per phase/step."""
     if max_new_tokens < 1:
         raise ValueError("max_new_tokens must be positive")
+    if phase_observer is not None:
+        phase_observer("prefill", "start")
     sync_device(device)
     start = time.perf_counter()
     output = model(input_ids=ids, attention_mask=mask, use_cache=True)
@@ -134,12 +137,16 @@ def run_once(model, ids, mask, max_new_tokens: int, device: str) -> dict:
     prefill_s = time.perf_counter() - start
     if not math.isfinite(prefill_s) or prefill_s <= 0:
         raise ValueError("Prefill duration must be finite and positive")
+    if phase_observer is not None:
+        phase_observer("prefill", "end")
     past = output.past_key_values
     if max_new_tokens > 1 and past is None:
         raise RuntimeError("Model did not return a KV cache for Decode")
     token = output.logits[:, -1, :].argmax(dim=-1, keepdim=True)
     del output
     step_times = []
+    if max_new_tokens > 1 and phase_observer is not None:
+        phase_observer("decode", "start")
     for _ in range(max_new_tokens - 1):
         mask = torch.cat((mask, torch.ones((ids.shape[0], 1), dtype=mask.dtype, device=device)), dim=1)
         sync_device(device)
@@ -155,6 +162,8 @@ def run_once(model, ids, mask, max_new_tokens: int, device: str) -> dict:
             raise RuntimeError("Model stopped returning a KV cache during Decode")
         token = output.logits[:, -1, :].argmax(dim=-1, keepdim=True)
         del output
+    if step_times and phase_observer is not None:
+        phase_observer("decode", "end")
     decode_s = sum(step_times)
     total_s = prefill_s + decode_s
     if not math.isfinite(total_s) or total_s <= 0:
@@ -203,7 +212,8 @@ def model_context(model, device: str) -> dict:
 
 
 def benchmark_workloads(model, tokenizer, workloads: list[Workload], device: str,
-                        warmup: int, repeats: int, run_id: str | None = None) -> pd.DataFrame:
+                        warmup: int, repeats: int, run_id: str | None = None,
+                        observer_factory=None) -> pd.DataFrame:
     if warmup < 0 or repeats < 1:
         raise ValueError("warmup must be nonnegative and repeats positive")
     rows = []
@@ -229,8 +239,13 @@ def benchmark_workloads(model, tokenizer, workloads: list[Workload], device: str
             continue
         for run_index in range(1, repeats + 1):
             try:
-                rows.append({**_base_row(workload, device, run_index, warmup, repeats),
-                             **run_once(model, ids, mask, workload.max_new_tokens, device)})
+                if observer_factory is None:
+                    measured = run_once(model, ids, mask, workload.max_new_tokens, device)
+                else:
+                    with observer_factory(workload, run_index) as active_observer:
+                        measured = run_once(model, ids, mask, workload.max_new_tokens, device,
+                                            phase_observer=active_observer.phase_event)
+                rows.append({**_base_row(workload, device, run_index, warmup, repeats), **measured})
             except Exception as exc:
                 rows.append({**_base_row(workload, device, run_index, warmup, repeats),
                              "status": "failed", "error": f"{type(exc).__name__}: {exc}"})
